@@ -15,5 +15,5 @@ ELSE()
 ENDIF()
 set(CMAKE_CXX_STANDARD 11)
 
-add_executable(stereo_matching main.cpp inc/config.h src/cost.cpp inc/cost.h src/matcher.cpp inc/matcher.h)
+add_executable(stereo_matching main.cpp inc/config.h src/CVC.cpp inc/CVC.h src/CVF.cpp inc/CVF.h src/fastGIF.cpp inc/fastGIF.h src/matcher.cpp inc/matcher.h inc/jointWMF.h)
 target_link_libraries(stereo_matching ${OpenCV_LIBS})
