@@ -1,4 +1,4 @@
-## Stereo matching - Dynamic programming
+## Stereo matching - Winner-take-all
 
 ### What is this?
 
@@ -10,26 +10,12 @@ This will NOT work if the two images are taken too far from each other, since th
 
 ### What is under this?
 
-A simple DP algorithm. Assume the images are rectified, which means, every pixel lies on the same row as its corresponding pixel.
+This approach computes disparity values for all pixels using a winner-take-all strategy, that is to choose the disparity value that gives the lowest matching cost for each pixel.
 
-Consider a scanline S.
-Let dp(i, j) be the cost of matching the first i pixels of S on L and first j pixels of S on R.
-Then:
+That is just the main idea. What makes this work quite well is the cost aggregation step. In this repo, that step is done using the algorithm from paper (https://dl.acm.org/citation.cfm?doid=3160927.3133560)
 
-    dp(i, j) = dp(i - 1, j) + <occlusion cost>
-    dp(i, j) = dp(i, j - 1) + <occlusion cost>
-    dp(i, j) = dp(i - 1, j - 1) + <cost of matching pixel i with pixel j>
-    
-Where \<occlusion cost\> is the penalty value of "skipping" a pixel.
-
-After compute the dp table, trace it back from (|S|, |S|) to (1, 1) to get the correspondences.
-
-Notice that, because the two images are taken not too far from each other, the disparity is not greater than a certain value, let's called it D_MAX.
-
-Since disparity cannot exceed D_MAX, we can simply just compute dp(i, j) for all i - D_MAX <= j <= i, bringing the complexity down to O(N * M * D_MAX * \<cost computation complexity\>)
+The code is heavily inspired by (https://github.com/PRiME-project/PRiMEStereoMatch)
 
 ### To-do list:
-
-- [x] Reduce streaking.
 
 - [ ] Optimize speed.
