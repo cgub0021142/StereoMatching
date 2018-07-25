@@ -1,7 +1,9 @@
 #include "../inc/matcher.h"
 #include "../inc/CVC.h"
-#include "../inc/CVF.h"
+#include "../inc/fastGIF.h"
 #include "../inc/jointWMF.h"
+#include "../inc/config.h"
+#include <omp.h>
 
 static cv::Mat getGradient(const cv::Mat &img) {
     cv::Mat ans;
@@ -11,19 +13,25 @@ static cv::Mat getGradient(const cv::Mat &img) {
 }
 
 static cv::Mat dispSelect(int n, int m, cv::Mat costVolume[]) {
+    int I_LENGTH = (n + N_THREAD - 1) / N_THREAD;
     cv::Mat ans(n, m, CV_8UC1);
-    for (int i = 0; i < n; ++i) {
-        for (int j = 0; j < m; ++j) {
-            float minCost = 1e18;
-            int pos = 0;
-            for (int d = 0; d < MAX_DISPARITY; ++d) {
-                float cost = costVolume[d].at<float>(i, j);
-                if (minCost > cost) {
-                    minCost = cost;
-                    pos = d;
+#pragma omp parallel for
+    for (int dx = 0; dx < N_THREAD; ++dx) {
+        int l = dx * I_LENGTH;
+        int r = min(n, l + I_LENGTH);
+        for (int i = l; i < r; ++i) {
+            for (int j = 0; j < m; ++j) {
+                float minCost = 1e18;
+                int pos = 0;
+                for (int d = 0; d < MAX_DISPARITY; ++d) {
+                    float cost = costVolume[d].at<float>(i, j);
+                    if (minCost > cost) {
+                        minCost = cost;
+                        pos = d;
+                    }
                 }
+                ans.at<uchar>(i, j) = uchar(pos * 4);
             }
-            ans.at<uchar>(i, j) = uchar(pos * 4);
         }
     }
     return ans;
@@ -55,13 +63,20 @@ void Matcher::ComputeDispMap(const cv::Mat &oriL, const cv::Mat &oriR, cv::Mat &
 
     cv::Mat costVolumeL[MAX_DISPARITY];
     cv::Mat costVolumeR[MAX_DISPARITY];
-    for (int d = 0; d < MAX_DISPARITY; ++d) {
-        costVolumeL[d] = BuildCV_L(imgL, imgR, gradL, gradR, d);
-        costVolumeR[d] = BuildCV_R(imgR, imgL, gradR, gradL, d);
-    }
+    FastGuidedFilter filterL(imgL, GIF_R_WIN, GIF_EPS, SUBSAMPLE_RATE);
+    FastGuidedFilter filterR(imgR, GIF_R_WIN, GIF_EPS, SUBSAMPLE_RATE);
 
-    FilterCV(imgL, costVolumeL);
-    FilterCV(imgR, costVolumeR);
+#pragma omp parallel for
+    for (int dx = 0; dx < N_THREAD; ++dx) {
+        int l = dx * THREAD_LENGTH;
+        int r = min(MAX_DISPARITY, l + THREAD_LENGTH);
+        for (int d = l; d < r; ++d) {
+            costVolumeL[d] = BuildCV_L(imgL, imgR, gradL, gradR, d);
+            costVolumeR[d] = BuildCV_R(imgR, imgL, gradR, gradL, d);
+            costVolumeL[d] = filterL.filter(costVolumeL[d]);
+            costVolumeR[d] = filterR.filter(costVolumeR[d]);
+        }
+    }
 
     int n = imgL.rows;
     int m = imgL.cols;
